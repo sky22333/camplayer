@@ -1,0 +1,3 @@
+-keep class com.jiangdg.** { *; }
+-keep class com.pedro.** { *; }
+-dontwarn org.slf4j.**

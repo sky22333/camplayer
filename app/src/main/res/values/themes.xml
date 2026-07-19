@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- windowLightStatusBar=false → 浅色图标（白），适配暗色内容区 -->
+    <style name="Theme.ZhenShi" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@color/seed_surface</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

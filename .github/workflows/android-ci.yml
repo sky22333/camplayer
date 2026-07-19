@@ -1,0 +1,138 @@
+name: Android CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "正式版标签（如 v1.0.0）；留空则只跑测试与 Debug 构建"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NDK_VERSION: "28.2.13676358"
+  CMAKE_VERSION: "3.22.1"
+
+jobs:
+  check:
+    name: 测试与 Debug 构建
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v7
+
+      - name: 配置 JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: 配置 Android SDK / NDK / CMake
+        uses: android-actions/setup-android@v4
+        with:
+          packages: >-
+            tools
+            platform-tools
+            platforms;android-37.0
+            build-tools;36.0.0
+            ndk;28.2.13676358
+            cmake;3.22.1
+
+      - name: 配置 NDK 环境变量
+        run: echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "${GITHUB_ENV}"
+
+      - name: 配置 Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: 单元测试
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
+
+      - name: Debug 构建
+        run: ./gradlew --no-daemon :app:assembleDebug
+
+  release:
+    name: 构建并发布正式版
+    needs: check
+    if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v7
+
+      - name: 配置 JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: 配置 Android SDK / NDK / CMake
+        uses: android-actions/setup-android@v4
+        with:
+          packages: >-
+            tools
+            platform-tools
+            platforms;android-37.0
+            build-tools;36.0.0
+            ndk;28.2.13676358
+            cmake;3.22.1
+
+      - name: 配置 NDK 环境变量
+        run: echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "${GITHUB_ENV}"
+
+      - name: 配置 Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: 解码发布签名
+        env:
+          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SIGNING_KEY_BASE64}" || -z "${KEY_ALIAS}" || -z "${KEY_STORE_PASSWORD}" || -z "${KEY_PASSWORD}" ]]; then
+            echo "请配置 Secrets: SIGNING_KEY_BASE64、KEY_ALIAS、KEY_STORE_PASSWORD、KEY_PASSWORD。" >&2
+            exit 1
+          fi
+          mkdir -p "${RUNNER_TEMP}/signing"
+          echo "${SIGNING_KEY_BASE64}" | base64 --decode > "${RUNNER_TEMP}/signing/release.keystore"
+
+      - name: 构建 Release APK
+        env:
+          RELEASE_TAG_INPUT: ${{ inputs.tag }}
+          SIGNING_STORE_FILE: ${{ runner.temp }}/signing/release.keystore
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="$(echo "${RELEASE_TAG_INPUT}" | xargs)"
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "标签须为 v主.次.修订，例如 v1.0.0。" >&2
+            exit 1
+          fi
+          VERSION_NAME="${RELEASE_TAG#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${VERSION_NAME}"
+          VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          export VERSION_NAME VERSION_CODE
+          echo "VERSION_NAME=${VERSION_NAME}" >> "${GITHUB_ENV}"
+          echo "VERSION_CODE=${VERSION_CODE}" >> "${GITHUB_ENV}"
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> "${GITHUB_ENV}"
+          ./gradlew --no-daemon :app:assembleRelease
+
+      - name: 发布到 GitHub Releases
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: 视频采集 ${{ env.RELEASE_TAG }}
+          files: app/build/outputs/apk/release/*.apk
+          generate_release_notes: true
+          make_latest: true
+          fail_on_unmatched_files: true
