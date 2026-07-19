@@ -1,6 +1,6 @@
 # AGENTS.md
 
-面向 AI 编码代理与贡献者。构建命令见 [README.md](./README.md)。
+开发文档
 
 ---
 
