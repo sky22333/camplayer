@@ -3,6 +3,7 @@ package com.zhenshi.capture
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -33,35 +34,34 @@ class MainActivityUiTest {
 
     @Test
     fun startDestination_isUsbDevices() {
-        composeRule.onNodeWithText("设备").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("设备").assertIsDisplayed()
         composeRule.onNodeWithText("刷新").assertIsDisplayed()
-        composeRule.onNodeWithText("选择设备").assertIsDisplayed()
     }
 
     @Test
     fun bottomNav_switchesToNetworkTab() {
-        composeRule.onNodeWithText("网络").performClick()
+        composeRule.onNodeWithContentDescription("网络").performClick()
         composeRule.onNodeWithText("开始观看").assertIsDisplayed()
     }
 
     @Test
     fun bottomNav_switchesToPushTab() {
-        composeRule.onNodeWithText("推流").performClick()
+        composeRule.onNodeWithContentDescription("推流").performClick()
         composeRule.onNodeWithText("添加").assertIsDisplayed()
-        composeRule.onNodeWithText("已保存").assertIsDisplayed()
+        composeRule.onNodeWithText("添加推流地址").assertIsDisplayed()
     }
 
     @Test
     fun bottomNav_switchesToSettingsTab() {
-        composeRule.onNodeWithText("设置").performClick()
+        composeRule.onNodeWithContentDescription("设置").performClick()
         composeRule.onNodeWithText("关于").assertIsDisplayed()
     }
 
     @Test
     fun bottomNav_returnsToUsbFromNetwork() {
-        composeRule.onNodeWithText("网络").performClick()
+        composeRule.onNodeWithContentDescription("网络").performClick()
         composeRule.onNodeWithText("开始观看").assertIsDisplayed()
-        composeRule.onNodeWithText("设备").performClick()
+        composeRule.onNodeWithContentDescription("设备").performClick()
         composeRule.onNodeWithText("刷新").assertIsDisplayed()
     }
 }

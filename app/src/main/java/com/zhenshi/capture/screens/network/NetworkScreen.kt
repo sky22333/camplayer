@@ -10,8 +10,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -34,6 +38,7 @@ fun NetworkScreen(
     viewModel: NetworkViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var showAddressHelp by rememberSaveable { mutableStateOf(false) }
 
     TabScreenLayout(
         contentPadding = contentPadding,
@@ -41,7 +46,6 @@ fun NetworkScreen(
     ) {
         ScreenHeader(
             title = stringResource(R.string.network_title),
-            subtitle = stringResource(R.string.network_latency_note),
         )
 
         AppTextField(
@@ -63,6 +67,17 @@ fun NetworkScreen(
             shape = CircleShape,
         ) {
             Text(stringResource(R.string.network_play))
+        }
+
+        TextButton(onClick = { showAddressHelp = !showAddressHelp }) {
+            Text(stringResource(R.string.network_address_help))
+        }
+        if (showAddressHelp) {
+            Text(
+                text = stringResource(R.string.network_address_help_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         SectionLabel(stringResource(R.string.network_history))

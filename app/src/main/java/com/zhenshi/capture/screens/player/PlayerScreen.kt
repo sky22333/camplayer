@@ -42,6 +42,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -273,12 +274,13 @@ fun PlayerScreen(
             )
         }
 
-        val errorText = (state.connection as? ConnectionState.Error)?.message ?: networkError
+        val isUsb = state.source is SignalSource.UsbDevice
+        val errorText = (state.connection as? ConnectionState.Error)?.message
+            ?: networkError?.takeIf { !isUsb }?.let { stringResource(R.string.player_error) }
         if (errorText != null) {
-            Text(
-                text = errorText,
-                color = Color.White,
-                style = MaterialTheme.typography.bodyMedium,
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .then(
@@ -290,7 +292,18 @@ fun PlayerScreen(
                                 .padding(start = 20.dp, end = 20.dp, bottom = 56.dp)
                         },
                     ),
-            )
+            ) {
+                Text(
+                    text = errorText,
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                TextButton(onClick = {
+                    if (isUsb) leavePlayback(onBack) else viewModel.retryNetwork()
+                }) {
+                    Text(stringResource(if (isUsb) R.string.player_return_devices else R.string.player_retry))
+                }
+            }
         }
 
         state.measuredLatencyMs?.takeIf { state.connection is ConnectionState.Ready }?.let { ms ->

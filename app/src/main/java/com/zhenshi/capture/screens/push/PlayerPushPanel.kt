@@ -13,8 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,11 +21,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -36,7 +33,6 @@ import com.zhenshi.capture.media.ConnectionState
 import com.zhenshi.capture.screens.components.EmptyHint
 import com.zhenshi.capture.screens.components.ExposedDropdownField
 import com.zhenshi.capture.screens.components.LocalAppSnackbar
-import com.zhenshi.capture.util.formatSignalSourceLabel
 import kotlinx.coroutines.launch
 
 @Composable
@@ -54,13 +50,12 @@ fun PlayerPushPanel(
     val scheme = MaterialTheme.colorScheme
 
     val push = uiState.push
-    val playback = uiState.playback
     val targets = uiState.targets
     val selectedTarget = uiState.selectedTarget
     val isConnecting = push.connection is ConnectionState.Connecting
     val isStreaming = push.isStreaming
     val isHandoffBusy = uiState.pushHandoffBusy
-    val switchBusy = isConnecting || isHandoffBusy
+    val controlsBusy = isConnecting || isHandoffBusy
 
     val bitratePresets = remember { BitratePreset.entries.toList() }
     val bitrateLabels = listOf(
@@ -106,7 +101,7 @@ fun PlayerPushPanel(
                 stringResource(R.string.push_running_named, name)
             } ?: stringResource(R.string.push_running)
         }
-        ConnectionState.Idle -> stringResource(R.string.push_idle)
+        ConnectionState.Idle -> null
     }
 
     Column(
@@ -114,27 +109,13 @@ fun PlayerPushPanel(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = stringResource(R.string.push_enable),
+            text = stringResource(R.string.push_title),
             style = MaterialTheme.typography.headlineMedium,
         )
-        Text(
-            text = stringResource(R.string.push_overlay_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = scheme.onSurfaceVariant,
-        )
-
-        Text(
-            text = formatSignalSourceLabel(playback.source),
-            style = MaterialTheme.typography.bodySmall,
-            color = scheme.onSurfaceVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-
         if (targets.isEmpty()) {
             EmptyHint(text = stringResource(R.string.push_no_targets_hint))
             TextButton(onClick = onManageTargets) {
-                Text(stringResource(R.string.push_manage_targets))
+                Text(stringResource(R.string.push_target_add))
             }
             return@Column
         }
@@ -151,7 +132,7 @@ fun PlayerPushPanel(
             onOptionSelected = { index ->
                 targets.getOrNull(index)?.let { viewModel.selectTarget(it.id) }
             },
-            enabled = !isStreaming && !switchBusy,
+            enabled = !isStreaming && !controlsBusy,
         )
 
         Text(
@@ -168,7 +149,7 @@ fun PlayerPushPanel(
                 FilterChip(
                     selected = selected,
                     onClick = { viewModel.onBitrateChange(preset) },
-                    enabled = !switchBusy,
+                    enabled = !controlsBusy,
                     label = { Text(bitrateLabels[index]) },
                     shape = RoundedCornerShape(999.dp),
                     colors = FilterChipDefaults.filterChipColors(
@@ -181,37 +162,33 @@ fun PlayerPushPanel(
             }
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.push_enable),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Switch(
-                checked = isStreaming || switchBusy,
-                onCheckedChange = { enabled ->
-                    if (enabled) requestStart() else viewModel.stop()
-                },
-                enabled = targets.isNotEmpty() && selectedTarget != null && !switchBusy,
-                colors = SwitchDefaults.colors(
-                    checkedTrackColor = scheme.primary,
-                    checkedThumbColor = scheme.onPrimary,
-                ),
+        if (statusText != null && !isHandoffBusy) {
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (push.connection is ConnectionState.Error) scheme.error else scheme.onSurfaceVariant,
             )
+        }
+        if (!isStreaming && !controlsBusy) {
+            Text(
+                text = stringResource(R.string.push_overlay_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant,
+            )
+        }
+        Button(
+            onClick = {
+                if (isStreaming || isConnecting) viewModel.stop() else requestStart()
+            },
+            enabled = !isHandoffBusy && (isStreaming || isConnecting || selectedTarget != null),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(when {
+                isHandoffBusy -> R.string.push_processing
+                isConnecting -> R.string.push_cancel_connection
+                isStreaming -> R.string.push_stop
+                else -> R.string.push_start
+            }))
         }
 
         TextButton(

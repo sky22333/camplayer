@@ -10,7 +10,6 @@ import com.zhenshi.capture.data.PushTargetStore
 import com.zhenshi.capture.media.BitratePreset
 import com.zhenshi.capture.media.ConnectionState
 import com.zhenshi.capture.media.PlaybackSession
-import com.zhenshi.capture.media.PlaybackSessionState
 import com.zhenshi.capture.media.PushSessionState
 import com.zhenshi.capture.media.SignalSource
 import com.zhenshi.capture.media.push.PushForegroundService
@@ -34,7 +33,6 @@ data class PlayerPushUiState(
     val targets: List<PushTarget> = emptyList(),
     val selectedTarget: PushTarget? = null,
     val push: PushSessionState = PushSessionState(),
-    val playback: PlaybackSessionState = PlaybackSessionState(),
     val pushHandoffBusy: Boolean = false,
 )
 
@@ -57,14 +55,12 @@ class PushViewModel @Inject constructor(
         pushTargetStore.targets,
         pushTargetStore.selectedTarget,
         pushController.state,
-        playbackSession.state,
         _pushHandoffBusy,
-    ) { targets, selected, push, playback, handoffBusy ->
+    ) { targets, selected, push, handoffBusy ->
         PlayerPushUiState(
             targets = targets,
             selectedTarget = selected,
             push = push,
-            playback = playback,
             pushHandoffBusy = handoffBusy,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PlayerPushUiState())
@@ -107,6 +103,10 @@ class PushViewModel @Inject constructor(
     }
 
     fun start() {
+        if (_pushHandoffBusy.value || pushController.state.value.connection.let {
+                it is ConnectionState.Connecting || it is ConnectionState.Ready
+            }
+        ) return
         viewModelScope.launch {
             pushOperationMutex.withLock {
                 _pushHandoffBusy.value = true
@@ -189,18 +189,18 @@ class PushViewModel @Inject constructor(
         if (!resumePreview) {
             handoff.beginFinish(resumePreview = false)
         }
-        pushController.stop()
-        PushForegroundService.stop(getApplication())
-        pushOperationMutex.withLock {
-            _pushHandoffBusy.value = true
-            try {
+        _pushHandoffBusy.value = true
+        try {
+            pushController.stop()
+            PushForegroundService.stop(getApplication())
+            pushOperationMutex.withLock {
                 Log.i(TAG, "push stop resumePreview=$resumePreview")
                 if (resumePreview) {
                     finishUsbPushHandoff(resumePreview = true)
                 }
-            } finally {
-                _pushHandoffBusy.value = false
             }
+        } finally {
+            _pushHandoffBusy.value = false
         }
     }
 

@@ -170,6 +170,8 @@ Preview / Push 均为 `RenderMode.NORMAL`，开关推流无需 OPENGL Surface �
 ### 5.5 UI 与文案
 
 - 文案：`strings.xml` 简体中文。
+- 默认界面只保留必要操作：设备页「打开画面」，参数折叠在「画面设置」，VID/PID 按需查看；网络地址帮助和延迟说明按需展开，勿恢复重复副标题或开发术语。
+- 推流面板使用「开始推流 / 取消连接 / 停止推流」按钮；handoff 期间显示处理中并禁用操作。错误文案完整展示；网络播放支持重试，USB 错误经原离开流程返回设备。
 - 主题：`ZhenShiTheme` 固定暗色 + 品牌绿，不跟系统浅色/壁纸取色。
 - Edge-to-edge：`enableDarkEdgeToEdge()`（`SystemBarStyle.dark`）；离开播放页 `restoreDarkSystemBars()`；insets 与 padding 不叠两层。禁止默认 `auto`（浅色会让图标发黑）。
 - 改 edge-to-edge / Compose 导航前可参阅 [android/skills](https://github.com/android/skills)。

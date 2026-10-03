@@ -29,7 +29,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zhenshi.capture.R
 import com.zhenshi.capture.screens.components.AppTextField
-import com.zhenshi.capture.screens.components.EmptyHint
 import com.zhenshi.capture.screens.components.FlatDivider
 import com.zhenshi.capture.screens.components.ScreenHeader
 import com.zhenshi.capture.screens.components.SectionLabel
@@ -49,7 +48,7 @@ fun PushScreen(
     ) {
         ScreenHeader(
             title = stringResource(R.string.push_targets_title),
-            subtitle = stringResource(R.string.push_targets_subtitle),
+            subtitle = if (state.targets.isEmpty()) stringResource(R.string.push_intro) else null,
         )
 
         SectionLabel(
@@ -108,10 +107,8 @@ fun PushScreen(
             }
         }
 
-        SectionLabel(stringResource(R.string.push_target_list))
-        if (state.targets.isEmpty()) {
-            EmptyHint(stringResource(R.string.push_target_list_empty))
-        } else {
+        if (state.targets.isNotEmpty()) {
+            SectionLabel(stringResource(R.string.push_target_list))
             state.targets.forEach { target ->
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Row(

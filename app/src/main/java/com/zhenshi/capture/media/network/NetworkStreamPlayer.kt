@@ -1,6 +1,7 @@
 package com.zhenshi.capture.media.network
 
 import android.content.Context
+import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -82,6 +83,7 @@ class NetworkStreamPlayer @Inject constructor(
 
     /** 摘引用并 stop，不 release；返回待释放实例。 */
     private fun detachAndStop(): ExoPlayer? {
+        _error.value = null
         val p = player ?: return null
         player = null
         bufferLatencySampler.clear()
@@ -107,6 +109,8 @@ class NetworkStreamPlayer @Inject constructor(
             .also { exo ->
                 exo.addListener(object : Player.Listener {
                     override fun onPlayerError(error: PlaybackException) {
+                        if (player !== exo) return
+                        Log.e("NetworkStreamPlayer", "Playback failed", error)
                         _error.value = error.message ?: context.getString(R.string.player_error)
                     }
                 })

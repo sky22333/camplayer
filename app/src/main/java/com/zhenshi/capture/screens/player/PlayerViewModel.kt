@@ -148,6 +148,13 @@ class PlayerViewModel @Inject constructor(
 
     fun exoPlayer(): ExoPlayer? = networkPlayer.playerOrNull()
 
+    fun retryNetwork() {
+        if (phase != PreviewPhase.Watching || openJob?.isActive == true) return
+        val source = resolveSource() ?: return
+        if (source is SignalSource.UsbDevice) return
+        viewModelScope.launch { runOpen(source, resolveProfile(), force = true) }
+    }
+
     fun leavePreview(onNavigate: () -> Unit = {}) {
         if (phase == PreviewPhase.Left) {
             onNavigate()

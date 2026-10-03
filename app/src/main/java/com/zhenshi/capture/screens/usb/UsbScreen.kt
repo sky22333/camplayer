@@ -12,12 +12,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -26,6 +32,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -157,20 +164,19 @@ fun UsbScreen(
     TabScreenLayout(contentPadding = contentPadding) {
         ScreenHeader(
             title = stringResource(R.string.usb_title),
-            subtitle = stringResource(R.string.usb_subtitle),
             actionLabel = stringResource(R.string.usb_refresh),
             onAction = viewModel::refresh,
         )
 
-        SectionLabel(stringResource(R.string.usb_select_device))
         if (state.devices.isEmpty()) {
             EmptyHint(stringResource(R.string.usb_empty))
         } else {
+            if (state.devices.size > 1) SectionLabel(stringResource(R.string.usb_select_device))
             state.devices.forEach { device ->
                 val selected = state.selected?.deviceId == device.deviceId
                 DeviceRow(
-                    name = device.name,
-                    meta = "VID ${device.vendorId.toString(16).uppercase()} · PID ${device.productId.toString(16).uppercase()}",
+                    device = device,
+                    showSelection = state.devices.size > 1,
                     selected = selected,
                     onClick = { viewModel.select(device) },
                 )
@@ -178,8 +184,10 @@ fun UsbScreen(
         }
 
         state.selected?.let { device ->
-            key(device.deviceId, capabilityRevision) {
-                val profiles = viewModel.profiles(device.deviceId)
+            key(device.deviceId) {
+                val profiles = remember(device.deviceId, capabilityRevision) {
+                    viewModel.profiles(device.deviceId)
+                }
                 UsbVideoSettingsPanel(
                     profiles = profiles,
                     probing = state.probingCapabilities,
@@ -204,36 +212,46 @@ fun UsbScreen(
 
 @Composable
 private fun DeviceRow(
-    name: String,
-    meta: String,
+    device: SignalSource.UsbDevice,
+    showSelection: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    var showDetails by rememberSaveable(device.deviceId) { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(vertical = 10.dp),
-            verticalAlignment = Alignment.Top,
+                .then(if (showSelection) Modifier.clickable(onClick = onClick) else Modifier)
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            RadioButton(
-                selected = selected,
-                onClick = onClick,
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = MaterialTheme.colorScheme.primary,
-                ),
-                modifier = Modifier.padding(top = 0.dp),
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = name, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text = meta,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            if (showSelection) {
+                RadioButton(
+                    selected = selected,
+                    onClick = null,
+                    colors = RadioButtonDefaults.colors(
+                        selectedColor = MaterialTheme.colorScheme.primary,
+                    ),
                 )
             }
+            Text(
+                text = device.name,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = { showDetails = !showDetails }) {
+                Icon(Icons.Outlined.Info, contentDescription = stringResource(R.string.usb_device_info))
+            }
+        }
+        if (showDetails) {
+            Text(
+                text = "VID ${device.vendorId.toString(16).uppercase()} · PID ${device.productId.toString(16).uppercase()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
         }
         FlatDivider()
     }
@@ -263,6 +281,7 @@ private fun UsbVideoSettingsPanel(
     onPreview: (VideoProfile) -> Unit,
     preferredProfile: () -> VideoProfile,
 ) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
     val resolutionOptions = remember(profiles) { profiles.resolutionOptions() }
     var selectedResolutionIndex by remember(profiles) { mutableIntStateOf(0) }
     var selectedFpsIndex by remember(profiles) { mutableIntStateOf(0) }
@@ -287,7 +306,18 @@ private fun UsbVideoSettingsPanel(
         stringResource(R.string.usb_profile_fps, fps)
     }
 
-    SectionLabel(stringResource(R.string.usb_video_settings))
+    val selectedProfile = selectedResolution?.let { res ->
+        selectedFps?.let { fps -> profiles.findProfile(res.width, res.height, fps) }
+    } ?: profiles.firstOrNull() ?: preferredProfile()
+
+    Button(
+        onClick = { onPreview(selectedProfile) },
+        modifier = Modifier.fillMaxWidth(),
+        enabled = !probing,
+        shape = CircleShape,
+    ) {
+        Text(stringResource(R.string.usb_preview))
+    }
 
     when {
         probing -> {
@@ -319,49 +349,57 @@ private fun UsbVideoSettingsPanel(
         }
     }
 
-    Row(
+    TextButton(
+        onClick = { expanded = !expanded },
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        ExposedDropdownField(
-            label = stringResource(R.string.usb_resolution_label),
-            selectedText = resolutionLabels.getOrNull(selectedResolutionIndex).orEmpty(),
-            options = resolutionLabels,
-            placeholder = stringResource(R.string.usb_resolution_placeholder),
-            enabled = resolutionLabels.isNotEmpty() && !probing,
-            onOptionSelected = { index ->
-                selectedResolutionIndex = index
-                selectedFpsIndex = 0
-            },
-            modifier = Modifier.weight(1.2f),
-        )
-        ExposedDropdownField(
-            label = stringResource(R.string.usb_fps_label),
-            selectedText = fpsLabels.getOrNull(selectedFpsIndex).orEmpty(),
-            options = fpsLabels,
-            placeholder = stringResource(R.string.usb_fps_placeholder),
-            enabled = fpsLabels.isNotEmpty() && !probing,
-            onOptionSelected = { selectedFpsIndex = it },
-            modifier = Modifier.weight(0.8f),
+        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+            Text(stringResource(R.string.usb_video_settings))
+            Text(
+                text = if (profiles.isEmpty()) {
+                    stringResource(R.string.usb_default_settings)
+                } else {
+                    selectedProfile.label
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Icon(
+            imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+            contentDescription = stringResource(
+                if (expanded) R.string.usb_settings_collapse else R.string.usb_settings_expand,
+            ),
         )
     }
 
-    Button(
-        onClick = {
-            val profile = selectedResolution?.let { res ->
-                selectedFps?.let { fps ->
-                    profiles.findProfile(res.width, res.height, fps)
-                }
-            } ?: profiles.firstOrNull() ?: preferredProfile()
-            onPreview(profile)
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp),
-        enabled = !probing,
-        shape = CircleShape,
-    ) {
-        Text(stringResource(R.string.usb_preview))
+    if (expanded) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ExposedDropdownField(
+                label = stringResource(R.string.usb_resolution_label),
+                selectedText = resolutionLabels.getOrNull(selectedResolutionIndex).orEmpty(),
+                options = resolutionLabels,
+                placeholder = stringResource(R.string.usb_resolution_placeholder),
+                enabled = resolutionLabels.isNotEmpty() && !probing,
+                onOptionSelected = { index ->
+                    selectedResolutionIndex = index
+                    selectedFpsIndex = 0
+                },
+                modifier = Modifier.weight(1.2f),
+            )
+            ExposedDropdownField(
+                label = stringResource(R.string.usb_fps_label),
+                selectedText = fpsLabels.getOrNull(selectedFpsIndex).orEmpty(),
+                options = fpsLabels,
+                placeholder = stringResource(R.string.usb_fps_placeholder),
+                enabled = fpsLabels.isNotEmpty() && !probing,
+                onOptionSelected = { selectedFpsIndex = it },
+                modifier = Modifier.weight(0.8f),
+            )
+        }
     }
 
     if (profiles.isEmpty() && !probing) {

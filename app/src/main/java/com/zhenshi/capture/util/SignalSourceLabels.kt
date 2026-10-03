@@ -13,8 +13,7 @@ fun SignalSource.displayName(): String = when (this) {
 }
 
 @Composable
-fun formatSignalSourceLabel(source: SignalSource?): String = when (source) {
-    null -> stringResource(R.string.push_source_none)
+private fun formatSignalSourceLabel(source: SignalSource): String = when (source) {
     is SignalSource.UsbDevice -> stringResource(R.string.push_source_usb, source.name)
     is SignalSource.RtmpUrl -> stringResource(R.string.push_source_network, source.url)
     is SignalSource.RtspUrl -> stringResource(R.string.push_source_network, source.url)
